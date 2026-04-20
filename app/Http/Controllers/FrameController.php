@@ -62,4 +62,74 @@ class FrameController extends Controller
             ], 500);
         }
     }
+
+    public function destroy($id)
+    {
+        try {
+            $frame = Frame::findOrFail($id);
+
+            // Hapus gambar fisik jika ada
+            if ($frame->image_path && Storage::disk('public')->exists($frame->image_path)) {
+                Storage::disk('public')->delete($frame->image_path);
+            }
+            
+            $frame->delete();
+
+            return response()->json([
+                'status' => 'success', 
+                'message' => 'Frame berhasil dihapus!'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Gagal dari Laravel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function update(Request $request, $id)
+{
+    // 1. Validasi data
+    $request->validate([
+        'name' => 'sometimes|required|string|max:255',
+        'image' => 'nullable|image|mimes:png|max:5120', 
+        'coordinates' => 'sometimes|required',
+    ]);
+
+    try {
+        $frame = Frame::findOrFail($id);
+
+        // 2. Kemaskini nama & status aktif
+        if ($request->has('name')) $frame->name = $request->name;
+        if ($request->has('is_active')) $frame->is_active = $request->is_active == '1';
+
+        // 3. Kemaskini koordinat
+        if ($request->has('coordinates')) {
+            $frame->coordinates = json_decode($request->coordinates, true);
+        }
+
+        // 4. Jika ada gambar baru diupload
+        if ($request->hasFile('image')) {
+            // Padam gambar lama dari storage
+            if ($frame->image_path && \Storage::disk('public')->exists($frame->image_path)) {
+                \Storage::disk('public')->delete($frame->image_path);
+            }
+            // Simpan gambar baru
+            $path = $request->file('image')->store('frames', 'public');
+            $frame->image_path = $path;
+        }
+
+        $frame->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Frame berjaya dikemaskini!',
+            'data' => $frame
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    }
+}
 }
